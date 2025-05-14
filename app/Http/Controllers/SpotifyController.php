@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use App\Services\SpotifyTokenService;
@@ -55,32 +56,58 @@ class SpotifyController extends Controller
             $data['expires_in']
         );
 
-        return redirect('/spotify/playing');
+        return redirect('/spotify/show');
     }
 
-    public function currentlyPlaying(Request $request)
+    public function logout()
     {
         $userId = auth()->id() ?? 1;
 
-        $tokenRecord = $this->tokenService->getTokens($userId);
+        // Tokenları veritabanından sil
+        \App\Models\SpotifyToken::where('user_id', $userId)->delete();
+
+        // Kullanıcıyı sistemden de çıkarmak istersen:
+        // auth()->logout();
+
+        return redirect('/spotify/login')->with('message', 'Spotify bağlantısı başarıyla kaldırıldı.');
+    }
+
+    public function currentlyPlaying()
+    {
+        $userId = auth()->id() ?? 1;
+
+        $tokenRecord = \App\Models\SpotifyToken::where('user_id', $userId)->first();
 
         if (!$tokenRecord) {
-            return response()->json(['error' => 'Spotify token not found.'], 401);
+            return response()->json(['error' => 'Spotify token kaydı bulunamadı.'], 401);
         }
 
-        // Token süresi kontrolü
-        if ($tokenRecord->isAccessTokenExpired()) {
-            $newToken = $this->tokenService->refreshAccessToken($tokenRecord->refresh_token);
-            if (!$newToken) {
-                return response()->json(['error' => 'Access token yenilenemedi.'], 401);
+        // ✅ Token'ın kalan süresini kontrol et
+        $now = Carbon::now();
+        $expiresAt = $tokenRecord->access_token_expires_at;
+        $remainingSeconds = $now->diffInSeconds($expiresAt, false);
+
+        if ($remainingSeconds < 10) { // 59 dakikadan az kaldıysa yenile
+            $spotifyService = new \App\Services\SpotifyTokenService();
+            $newAccessToken = $spotifyService->refreshAccessToken($tokenRecord->refresh_token);
+
+            if (!$newAccessToken) {
+                return response()->json(['error' => 'Access token yenilenemedi.']);
             }
 
-            $this->tokenService->storeTokens($userId, $newToken, $tokenRecord->refresh_token, 3600);
-            $tokenRecord->access_token = $newToken;
+            $expiresIn = 3600; // Spotify token süresi
+            $spotifyService->storeTokens($userId, $newAccessToken, $tokenRecord->refresh_token, $expiresIn);
+
+            // Token'ı tekrar çek
+            $tokenRecord = \App\Models\SpotifyToken::where('user_id', $userId)->first();
+            $remainingSeconds = 3600;
         }
 
+        $accessToken = $tokenRecord->access_token;
+
+        // Spotify API'den o an çalan şarkıyı al
         $response = Http::withHeaders([
-            'Authorization' => "Bearer {$tokenRecord->access_token}"
+            'Authorization' => "Bearer $accessToken"
         ])->get('https://api.spotify.com/v1/me/player/currently-playing');
 
         if ($response->status() === 204) {
@@ -98,23 +125,29 @@ class SpotifyController extends Controller
             'is_playing' => $data['is_playing'] ?? false,
             'progress_ms' => $data['progress_ms'] ?? null,
             'timestamp' => $data['timestamp'] ?? null,
+            'token_expires_in_seconds' => $remainingSeconds,
         ];
 
+        // Playlist bilgisi varsa al
         if (isset($data['context']['type']) && $data['context']['type'] === 'playlist') {
             $playlistUri = $data['context']['uri'];
-            $playlistId = explode(':', $playlistUri)[2];
+            $playlistId = last(explode(':', $playlistUri));
 
             $playlistResponse = Http::withHeaders([
-                'Authorization' => "Bearer {$tokenRecord->access_token}"
-            ])->get("https://api.spotify.com/v1/playlists/{$playlistId}");
+                'Authorization' => "Bearer $accessToken"
+            ])->get("https://api.spotify.com/v1/playlists/$playlistId");
 
-            $result['playlist'] = $playlistResponse->ok()
-                ? $playlistResponse->json()
-                : ['error' => 'Playlist bilgisi alınamadı'];
+            if ($playlistResponse->ok()) {
+                $result['playlist'] = $playlistResponse->json();
+            } else {
+                $result['playlist'] = ['error' => 'Playlist bilgisi alınamadı'];
+            }
         } else {
             $result['playlist'] = null;
         }
 
         return response()->json($result);
     }
+
+
 }

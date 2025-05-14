@@ -26,6 +26,8 @@
     </style>
 </head>
 <body>
+<a href="{{ route('spotify.logout') }}" class="btn btn-danger">Spotify'dan Çıkış Yap</a>
+
 
 <h1>🎵 Şu Anda Çalan Şarkı</h1>
 
@@ -43,6 +45,10 @@
 
 <div id="playlist-url" class="playlist-url">
     <!-- Playlist URL buraya basılacak -->
+</div>
+
+<div id="token-status">
+    Token kalan süre: <span id="token-time">Yükleniyor...</span> dakika
 </div>
 
 <script>
@@ -114,6 +120,19 @@
     // Sayfa yüklendiğinde ve her 5 saniyede bir çağır
     fetchCurrentTrack();
     setInterval(fetchCurrentTrack, 3000);
+
+    async function fetchData() {
+        const res = await fetch('/spotify/playing');
+        const data = await res.json();
+
+        if (data.token_expires_in_seconds !== undefined) {
+            document.getElementById('token-time').innerText = Math.round(data.token_expires_in_seconds);
+        }
+
+        // diğer şarkı bilgilerini de burada güncelleyebilirsin
+    }
+
+    fetchData(); // İlk çağrı
 </script>
 
 </body>
