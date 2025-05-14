@@ -1,12 +1,20 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Session;
+use App\Services\SpotifyTokenService;
 
 class SpotifyController extends Controller
 {
+    protected $tokenService;
+
+    public function __construct(SpotifyTokenService $tokenService)
+    {
+        $this->tokenService = $tokenService;
+    }
+
     public function login()
     {
         $query = http_build_query([
@@ -31,39 +39,82 @@ class SpotifyController extends Controller
             'redirect_uri' => env('SPOTIFY_REDIRECT_URI'),
         ]);
 
+        if ($response->failed()) {
+            return response()->json(['error' => 'Token alınamadı', 'details' => $response->json()], 400);
+        }
+
         $data = $response->json();
 
-        // Tokenları session'da tutuyoruz (test amaçlı)
-        Session::put('spotify_access_token', $data['access_token']);
-        Session::put('spotify_refresh_token', $data['refresh_token']);
+        // Örnek olarak kullanıcı ID'sini 1 kabul ediyoruz
+        $userId = auth()->id() ?? 1;
+
+        $this->tokenService->storeTokens(
+            $userId,
+            $data['access_token'],
+            $data['refresh_token'],
+            $data['expires_in']
+        );
 
         return redirect('/spotify/playing');
     }
 
-    public function currentlyPlaying()
+    public function currentlyPlaying(Request $request)
     {
-        $token = Session::get('spotify_access_token');
+        $userId = auth()->id() ?? 1;
 
-        if (!$token) {
-            return redirect('/spotify/login');
+        $tokenRecord = $this->tokenService->getTokens($userId);
+
+        if (!$tokenRecord) {
+            return response()->json(['error' => 'Spotify token not found.'], 401);
+        }
+
+        // Token süresi kontrolü
+        if ($tokenRecord->isAccessTokenExpired()) {
+            $newToken = $this->tokenService->refreshAccessToken($tokenRecord->refresh_token);
+            if (!$newToken) {
+                return response()->json(['error' => 'Access token yenilenemedi.'], 401);
+            }
+
+            $this->tokenService->storeTokens($userId, $newToken, $tokenRecord->refresh_token, 3600);
+            $tokenRecord->access_token = $newToken;
         }
 
         $response = Http::withHeaders([
-            'Authorization' => "Bearer $token"
+            'Authorization' => "Bearer {$tokenRecord->access_token}"
         ])->get('https://api.spotify.com/v1/me/player/currently-playing');
 
-        if ($response->status() == 204) {
-            return 'Şu anda çalan bir şarkı yok.';
+        if ($response->status() === 204) {
+            return response()->json(['message' => 'Şu anda çalan şarkı yok.']);
+        }
+
+        if ($response->failed()) {
+            return response()->json(['error' => 'Spotify API hatası.', 'details' => $response->json()], $response->status());
         }
 
         $data = $response->json();
 
-        if (isset($data['item'])) {
-            $song = $data['item']['name'];
-            $artist = $data['item']['artists'][0]['name'];
-            return "🎵 Şu anda çalan şarkı: $artist - $song";
+        $result = [
+            'track' => $data['item'] ?? null,
+            'is_playing' => $data['is_playing'] ?? false,
+            'progress_ms' => $data['progress_ms'] ?? null,
+            'timestamp' => $data['timestamp'] ?? null,
+        ];
+
+        if (isset($data['context']['type']) && $data['context']['type'] === 'playlist') {
+            $playlistUri = $data['context']['uri'];
+            $playlistId = explode(':', $playlistUri)[2];
+
+            $playlistResponse = Http::withHeaders([
+                'Authorization' => "Bearer {$tokenRecord->access_token}"
+            ])->get("https://api.spotify.com/v1/playlists/{$playlistId}");
+
+            $result['playlist'] = $playlistResponse->ok()
+                ? $playlistResponse->json()
+                : ['error' => 'Playlist bilgisi alınamadı'];
         } else {
-            return 'Şarkı bilgisi alınamadı.';
+            $result['playlist'] = null;
         }
+
+        return response()->json($result);
     }
 }
