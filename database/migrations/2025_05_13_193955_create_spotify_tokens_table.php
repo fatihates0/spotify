@@ -11,6 +11,7 @@ class CreateSpotifyTokensTable extends Migration
         Schema::create('spotify_tokens', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('user_id')->unique();
+            $table->string('uniq_id');
             $table->string('access_token');
             $table->string('refresh_token');
             $table->timestamp('access_token_expires_at');

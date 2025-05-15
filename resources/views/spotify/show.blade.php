@@ -48,7 +48,7 @@
 </div>
 
 <div id="token-status">
-    Token kalan süre: <span id="token-time">Yükleniyor...</span> dakika
+    Token kalan süre: <span id="token-time">Yükleniyor...</span> saniye
 </div>
 
 <script>

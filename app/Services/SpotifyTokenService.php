@@ -6,6 +6,7 @@ use App\Jobs\RefreshSpotifyAccessToken;
 use App\Models\SpotifyToken;
 use Illuminate\Support\Facades\Http;
 use Carbon\Carbon;
+use Illuminate\Support\Str;
 
 class SpotifyTokenService
 {
@@ -30,7 +31,7 @@ class SpotifyTokenService
     public function storeTokens($userId, $accessToken, $refreshToken, $expiresIn)
     {
         SpotifyToken::updateOrCreate(
-            ['user_id' => $userId],
+            ['user_id' => $userId,'uniq_id' => Str::uuid()->toString()],
             [
                 'access_token' => $accessToken,
                 'refresh_token' => $refreshToken,
