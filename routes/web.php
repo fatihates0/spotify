@@ -8,7 +8,7 @@ Route::get('/spotify/logout', [SpotifyController::class, 'logout'])->name('spoti
 Route::get('/spotify/callback', [SpotifyController::class, 'callback']);
 Route::get('/spotify/playing', [SpotifyController::class, 'currentlyPlaying']);
 Route::get('/spotify/show/{uuid?}', function ($uuid = null) {
-    if (!$uuid){
+    if ($uuid == null){
         echo "Cafe bulunamadı!";
     }
     return view('spotify.show');
