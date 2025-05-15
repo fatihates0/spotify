@@ -12,6 +12,7 @@ class SpotifyToken extends Model
     protected $fillable = [
         'user_id',
         'uniq_id',
+        'name',
         'access_token',
         'refresh_token',
         'access_token_expires_at',

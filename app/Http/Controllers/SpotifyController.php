@@ -119,6 +119,7 @@ class SpotifyController extends Controller
             return response()->json(['error' => 'Spotify API hatası.', 'details' => $response->json()], $response->status());
         }
 
+
         $data = $response->json();
 
         $result = [
@@ -127,6 +128,8 @@ class SpotifyController extends Controller
             'progress_ms' => $data['progress_ms'] ?? null,
             'timestamp' => $data['timestamp'] ?? null,
             'token_expires_in_seconds' => $remainingSeconds,
+            'name' =>$tokenRecord->name
+
         ];
 
         // Playlist bilgisi varsa al

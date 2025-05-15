@@ -55,6 +55,7 @@
     let progressMs = 0;
     let durationMs = 1;
     let playing = false;
+    let name;
 
     // Dakika ve saniyeye dönüştür
     function formatTime(ms) {
@@ -82,6 +83,8 @@
             const response = await fetch("/spotify/playing/{{$uniq_id}}");
             const data = await response.json();
 
+            console.log(data)
+
             const container = document.getElementById("song");
             const playlistUrlContainer = document.getElementById("playlist-url");
 
@@ -90,10 +93,12 @@
                 progressMs = data.progress_ms;
                 durationMs = data.track.duration_ms;
                 playing = data.is_playing;
+                name = data.name;
 
                 container.innerHTML = `
                     <img src="${data.track.album.images[0].url}" alt="Kapak">
                     <div class="info">
+                        <h2>${data.name}</h2>
                         <h2>${data.track.name}</h2>
                         <p><strong>Sanatçı:</strong> ${data.track.artists.map(a => a.name).join(", ")}</p>
                         <p><strong>Albüm:</strong> ${data.track.album.name}</p>
