@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\SpotifyToken;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -72,9 +73,9 @@ class SpotifyController extends Controller
         return redirect('/spotify/login')->with('message', 'Spotify bağlantısı başarıyla kaldırıldı.');
     }
 
-    public function currentlyPlaying()
+    public function currentlyPlaying($uniq_id)
     {
-        $userId = auth()->id() ?? 1;
+        $userId = SpotifyToken::where('uniq_id',$uniq_id)->first()->user_id ?? 1;
 
         $tokenRecord = \App\Models\SpotifyToken::where('user_id', $userId)->first();
 

@@ -79,7 +79,7 @@
 
     async function fetchCurrentTrack() {
         try {
-            const response = await fetch("/spotify/playing");
+            const response = await fetch("/spotify/playing/{{$uniq_id}}");
             const data = await response.json();
 
             const container = document.getElementById("song");
@@ -122,7 +122,7 @@
     setInterval(fetchCurrentTrack, 3000);
 
     async function fetchData() {
-        const res = await fetch('/spotify/playing');
+        const res = await fetch('/spotify/playing/{{$uniq_id}}');
         const data = await res.json();
 
         if (data.token_expires_in_seconds !== undefined) {
