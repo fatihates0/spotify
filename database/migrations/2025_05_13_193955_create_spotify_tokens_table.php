@@ -12,6 +12,7 @@ class CreateSpotifyTokensTable extends Migration
             $table->id();
             $table->unsignedBigInteger('user_id')->unique();
             $table->string('uniq_id');
+            $table->string('name')->nullable();
             $table->string('access_token');
             $table->string('refresh_token');
             $table->timestamp('access_token_expires_at');
